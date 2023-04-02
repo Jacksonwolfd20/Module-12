@@ -395,4 +395,4 @@ const viewTotalUtilizedBudget = () => {
     .then(() => mainMenu());
 };
 
-
+mainMenu();
