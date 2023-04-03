@@ -37,5 +37,6 @@ cd into the project then enter the following command
 
 ## Video Demonstration
 
-![Click here for walk through video](https://github.com/Jacksonwolfd20/Module-12/blob/main/assets/README.webm?raw=true)
+![Click here for walk through video]([README (1).webm](https://user-images.githubusercontent.com/78714394/229429380-4fb8220a-c75a-4300-8287-0f93dc182c93.webm)
+)
 
