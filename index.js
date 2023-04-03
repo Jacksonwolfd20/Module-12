@@ -1,6 +1,7 @@
 const inquirer = require("inquirer");
-const db = require("./db");
+const db = require("./db/connection");
 const cTable = require("console.table");
+const { prompt } = require("inquirer");
 const colors = require("colors");
 
 const mainMenu = () => {
@@ -13,20 +14,13 @@ const mainMenu = () => {
         message: "Choose an option:",
         choices: [
           "View all employees",
-          "View All Employees By Department",
-          "View All Employees By Manager",
           "Add an employee",
           "Update an employee role",
-          "Remove an employee",
-          "update an employee manager",
           "Add a department",
           "View all roles",
           "Add a role",
-          "remove a role",
           "View all departments",
-          "Remove a department",
           "add a department",
-          "View the total utilized budget of a department",
           "Quit",
         ],
       },
@@ -36,23 +30,11 @@ const mainMenu = () => {
         case "View all employees":
           viewAllEmployees();
           break;
-        case "View All Employees By Department":
-          viewEmployeesByDepartment();
-          break;
-        case "View All Employees By Manager":
-          viewEmployeesByManager();
-          break;
         case "Add an employee":
           addEmployee();
           break;
         case "Update an employee role":
           updateEmployeeRole();
-          break;
-        case "Remove an employee":
-          removeEmployee();
-          break;
-        case "update an employee manager":
-          updateEmployeeManager();
           break;
         case "Add a department":
           addDepartment();
@@ -63,90 +45,29 @@ const mainMenu = () => {
         case "Add a role":
           addRole();
           break;
-        case "remove a role":
-          removeRole();
-          break;
         case "View all departments":
           viewAllDepartments();
           break;
-        case "Remove a department":
-          removeDepartment();
-          break;
-        case "add a department":
+        case "Add a department":
           addDepartment();
           break;
-        case "View the total utilized budget of a department":
-          viewTotalUtilizedBudget();
-          break;
         case "Quit":
-          quit();
+          Quit();
           break;
       }
     });
 };
 // View all employees
 const viewAllEmployees = () => {
-  db.findAllEmployees()
+  db.promise()
+    .query(
+      "SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name, ' ', manager.last_name) AS manager FROM employee LEFT JOIN role on employee.role_id = role.id LEFT JOIN department on role.department_id = department.id LEFT JOIN employee manager on manager.id = employee.manager_id;"
+    )
     .then(([data]) => {
       let employees = data;
       console.table(employees);
-    })
-    .then(() => mainMenu());
-};
-
-// View all employees by department
-const viewEmployeesByDepartment = () => {
-  db.findAllDepartments().then(([data]) => {
-    const departments = data.map(({ id, name }) => ({ name: name, value: id }));
-    const allDepartments = departments;
-    inquirer
-      .prompt([
-        {
-          type: "list",
-          name: "departmentId",
-          message: "Please choose a department to see employees from?",
-          choices: allDepartments,
-        },
-      ])
-      .then((answer) => {
-        db.findAllEmployeesByDepartment(answer.departmentId)
-          .then(([data]) => {
-            let employees = data;
-            console.table(employees);
-          })
-          .then(() => mainMenu());
-      });
-  });
-};
-
-// View all employees by manager
-const viewEmployeesByManager = () => {
-  db.findAllEmployees().then(([data]) => {
-    let managers = data;
-    const allManagers = managers.map(({ id, first_name, last_name }) => ({
-      name: `${first_name} ${last_name}`,
-      value: id,
-    }));
-
-    prompt([
-      {
-        type: "list",
-        name: "managerId",
-        message: "Which employee would you want to select?",
-        choices: allManagers,
-      },
-    ])
-      .then((res) => db.findAllEmployeesByManager(res.managerId))
-      .then(([rows]) => {
-        let employees = rows;
-        if (employees.length === 0) {
-          console.log("Sorry the employee has no manager");
-        } else {
-          console.table(employees);
-        }
-      })
-      .then(() => mainMenu());
-  });
+      mainMenu();
+    });
 };
 
 // Add an employee
@@ -160,11 +81,13 @@ const addEmployee = () => {
       name: "last_name",
       message: "What is the employee's last name?",
     },
-  ]).then((res) => {
-    let firstName = res.first_name;
-    let lastName = res.last_name;
+  ]).then((data) => {
+    let firstName = data.first_name;
+    let lastName = data.last_name;
 
-    db.findAllRoles().then(([data]) => {
+    db.promise().query(
+        "SELECT role.id, role.title, department.name AS department, role.salary FROM role LEFT JOIN department on role.department_id = department.id;"
+      ).then(([data]) => {
       let allRoles = data;
       const ChosenRole = allRoles.map(({ id, title }) => ({
         name: title,
@@ -174,12 +97,14 @@ const addEmployee = () => {
       prompt({
         type: "list",
         name: "roleId",
-        message: "what role does the employee do?",
+        message: "What role does the employee do?",
         choices: ChosenRole,
-      }).then((res) => {
-        let roleId = res.roleId;
+      }).then((data) => {
+        let roleId = data.roleId;
 
-        db.findAllEmployees().then(([data]) => {
+        db.promise().query(
+            "SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name, ' ', manager.last_name) AS manager FROM employee LEFT JOIN role on employee.role_id = role.id LEFT JOIN department on role.department_id = department.id LEFT JOIN employee manager on manager.id = employee.manager_id;"
+          ).then(([data]) => {
           let employees = data;
           const ChosenManager = employees.map(
             ({ id, first_name, last_name }) => ({
@@ -188,23 +113,23 @@ const addEmployee = () => {
             })
           );
 
-          managerChoices.unshift({ name: "None", value: null });
+          ChosenManager.unshift({ name: "None", value: null });
 
           prompt({
             type: "list",
             name: "managerId",
             message: "Who is the employee's manager?",
-            choices: managerChoices,
+            choices: ChosenManager,
           })
-            .then((res) => {
+            .then((data) => {
               let employee = {
-                manager_id: res.managerId,
+                manager_id: data.managerId,
                 role_id: roleId,
                 first_name: firstName,
                 last_name: lastName,
               };
 
-              db.createEmployee(employee);
+              db.promise().query("INSERT INTO employee SET ?", employee);
             })
             .then(() =>
               console.log(`Added ${firstName} ${lastName} to the database`.blue)
@@ -218,7 +143,9 @@ const addEmployee = () => {
 
 // Update an employee role
 const updateEmployeeRole = () => {
-  db.findAllEmployees().then(([data]) => {
+  db.promise().query(
+    "SELECT employee.id, employee.first_name, employee.last_name, role.title, department.name AS department, role.salary, CONCAT(manager.first_name, ' ', manager.last_name) AS manager FROM employee LEFT JOIN role on employee.role_id = role.id LEFT JOIN department on role.department_id = department.id LEFT JOIN employee manager on manager.id = employee.manager_id;"
+  ).then(([data]) => {
     let employees = data;
     const allEmployees = employees.map(({ id, first_name, last_name }) => ({
       name: `${first_name} ${last_name}`,
@@ -231,9 +158,11 @@ const updateEmployeeRole = () => {
         message: "What Employees role should be updated?",
         choices: allEmployees,
       },
-    ]).then((res) => {
-      let employeeId = res.employeeId;
-      db.findAllRoles().then(([data]) => {
+    ]).then((data) => {
+      let employeeId = data.employeeId;
+      db.promise().query(
+        "SELECT role.id, role.title, department.name AS department, role.salary FROM role LEFT JOIN department on role.department_id = department.id;"
+      ).then(([data]) => {
         let roles = data;
         const allRoles = roles.map(({ id, title }) => ({
           name: title,
@@ -247,7 +176,10 @@ const updateEmployeeRole = () => {
             choices: allRoles,
           },
         ])
-          .then((res) => db.updateEmployeeRole(employeeId, res.roleId))
+          .then((data) => db.promise().query(
+            "UPDATE employee SET role_id = ? WHERE id = ?",
+            [data.roleId, employeeId]
+          ))
           .then(() => console.log("Updated employee's role".blue))
           .then(() => mainMenu());
       });
@@ -255,31 +187,11 @@ const updateEmployeeRole = () => {
   });
 };
 
-// Remove an employee
-const removeEmployee = () => {
-  db.findAllEmployees().then(([data]) => {
-    let employees = data;
-    const allEmployees = employees.map(({ id, first_name, last_name }) => ({
-      name: `${first_name} ${last_name}`,
-      value: id,
-    }));
-    prompt([
-      {
-        type: "list",
-        name: "employeeId",
-        message: "What employee will be removed?",
-        choices: allEmployees,
-      },
-    ])
-      .then((res) => db.removeEmployee(res.employeeId))
-      .then(() => console.log("Removed employee from the database".blue))
-      .then(() => mainMenu());
-  });
-};
-
 // View all roles
 const viewAllRoles = () => {
-  db.findAllRoles()
+  db.promise().query(
+    "SELECT role.id, role.title, department.name AS department, role.salary FROM role LEFT JOIN department on role.department_id = department.id;"
+  )
     .then(([data]) => {
       let roles = data;
       console.table(roles);
@@ -289,7 +201,9 @@ const viewAllRoles = () => {
 
 // Add a role
 const addRole = () => {
-  db.findAllDepartments().then(([data]) => {
+  db.promise().query(
+    "SELECT department.id, department.name FROM department;"
+  ).then(([data]) => {
     let departments = data;
     const allDepartments = departments.map(({ id, name }) => ({
       name: name,
@@ -311,30 +225,8 @@ const addRole = () => {
         choices: allDepartments,
       },
     ])
-      .then((res) => db.createRole(res))
+      .then((data) => db.promise().query("INSERT INTO role SET ?", data))
       .then(() => console.log(`Added a new role to the database`.blue))
-      .then(() => mainMenu());
-  });
-};
-
-// Remove a role
-const removeRole = () => {
-  db.findAllRoles().then(([data]) => {
-    let roles = data;
-    const allRoles = roles.map(({ id, title }) => ({
-      name: title,
-      value: id,
-    }));
-    prompt([
-      {
-        type: "list",
-        name: "roleId",
-        message: "What role will be removed?",
-        choices: allRoles,
-      },
-    ])
-      .then((res) => db.removeRole(res.roleId))
-      .then(() => console.log("Removed role from the database".blue))
       .then(() => mainMenu());
   });
 };
@@ -342,7 +234,9 @@ const removeRole = () => {
 // View all departments
 
 const viewAllDepartments = () => {
-  db.findAllDepartments()
+  db.promise().query(
+    "SELECT department.id, department.name FROM department;"
+  )
     .then(([data]) => {
       let departments = data;
       console.table(departments);
@@ -358,41 +252,14 @@ const addDepartment = () => {
       message: "What do you name the new department?",
     },
   ])
-    .then((res) => db.createDepartment(res))
-    .then(() => console.log(`new department has been added`.blue))
+    .then((data) => db.promise().query("INSERT INTO department SET ?", data))
+    .then(() => console.log(`New department has been added`.blue))
     .then(() => mainMenu());
 };
 
-// Remove a department
-const removeDepartment = () => {
-  db.findAllDepartments().then(([data]) => {
-    let departments = data;
-    const allDepartments = departments.map(({ id, name }) => ({
-      name: name,
-      value: id,
-    }));
-    prompt([
-      {
-        type: "list",
-        name: "departmentId",
-        message: "What department will be removed?",
-        choices: allDepartments,
-      },
-    ])
-      .then((res) => db.removeDepartment(res.departmentId))
-      .then(() => console.log("department has been removed".blue))
-      .then(() => mainMenu());
-  });
-};
-
-// View the total utilized budget of a department -- ie the combined salaries of all employees in that department
-const viewTotalUtilizedBudget = () => {
-  db.viewDepartmentBudgets()
-    .then(([data]) => {
-      let departments = data;
-      console.table(departments);
-    })
-    .then(() => mainMenu());
-};
+const Quit = () => {
+    console.log("Goodbye!".blue);
+    process.exit();
+    };
 
 mainMenu();
